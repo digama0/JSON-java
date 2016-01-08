@@ -28,10 +28,10 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.lang.reflect.Array;
-import java.math.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -78,18 +78,13 @@ import java.util.Map;
  * @author JSON.org
  * @version 2015-10-29
  */
-public class JSONArray implements Iterable<Object> {
-
-    /**
-     * The arrayList where the JSONArray's properties are kept.
-     */
-    private final ArrayList<Object> myArrayList;
+public class JSONArray extends ArrayList<Object> {
 
     /**
      * Construct an empty JSONArray.
      */
     public JSONArray() {
-        this.myArrayList = new ArrayList<Object>();
+        super();
     }
 
     /**
@@ -110,10 +105,10 @@ public class JSONArray implements Iterable<Object> {
             for (;;) {
                 if (x.nextClean() == ',') {
                     x.back();
-                    this.myArrayList.add(JSONObject.NULL);
+                    super.add(JSONObject.NULL);
                 } else {
                     x.back();
-                    this.myArrayList.add(x.nextValue());
+                    super.add(x.nextValue());
                 }
                 switch (x.nextClean()) {
                 case ',':
@@ -152,11 +147,11 @@ public class JSONArray implements Iterable<Object> {
      *            A Collection.
      */
     public JSONArray(Collection<?> collection) {
-        this.myArrayList = new ArrayList<Object>();
+        this();
         if (collection != null) {
-        	for (Object o: collection){
-        		this.myArrayList.add(JSONObject.wrap(o));
-        	}
+            for (Object o: collection){
+                super.add(JSONObject.wrap(o));
+            }
         }
     }
 
@@ -177,11 +172,6 @@ public class JSONArray implements Iterable<Object> {
             throw new JSONException(
                     "JSONArray initial value should be a string or collection or array.");
         }
-    }
-
-    @Override
-    public Iterator<Object> iterator() {
-        return myArrayList.iterator();
     }
 
     /**
@@ -433,7 +423,7 @@ public class JSONArray implements Iterable<Object> {
             if (i > 0) {
                 sb.append(separator);
             }
-            sb.append(JSONObject.valueToString(this.myArrayList.get(i)));
+            sb.append(JSONObject.valueToString(super.get(i)));
         }
         return sb.toString();
     }
@@ -444,7 +434,7 @@ public class JSONArray implements Iterable<Object> {
      * @return The length (or size).
      */
     public int length() {
-        return this.myArrayList.size();
+        return size();
     }
 
     /**
@@ -455,8 +445,7 @@ public class JSONArray implements Iterable<Object> {
      * @return An object value, or null if there is no object at that index.
      */
     public Object opt(int index) {
-        return (index < 0 || index >= this.length()) ? null : this.myArrayList
-                .get(index);
+        return (index < 0 || index >= this.length()) ? null : super.get(index);
     }
 
     /**
@@ -746,8 +735,7 @@ public class JSONArray implements Iterable<Object> {
      * @return this.
      */
     public JSONArray put(Collection<?> value) {
-        this.put(new JSONArray(value));
-        return this;
+        return put((Object) (value instanceof JSONArray ? value : new JSONArray(value)));
     }
 
     /**
@@ -799,8 +787,7 @@ public class JSONArray implements Iterable<Object> {
      * @return this.
      */
     public JSONArray put(Map<?, ?> value) {
-        this.put(new JSONObject(value));
-        return this;
+        return put((Object) (value instanceof JSONObject ? value : new JSONObject(value)));
     }
 
     /**
@@ -813,7 +800,7 @@ public class JSONArray implements Iterable<Object> {
      * @return this.
      */
     public JSONArray put(Object value) {
-        this.myArrayList.add(value);
+        super.add(value);
         return this;
     }
 
@@ -848,8 +835,7 @@ public class JSONArray implements Iterable<Object> {
      *             If the index is negative or if the value is not finite.
      */
     public JSONArray put(int index, Collection<?> value) throws JSONException {
-        this.put(index, new JSONArray(value));
-        return this;
+        return put(index, (Object) (value instanceof JSONArray ? value : new JSONArray(value)));
     }
 
     /**
@@ -920,8 +906,7 @@ public class JSONArray implements Iterable<Object> {
      *             number.
      */
     public JSONArray put(int index, Map<?, ?> value) throws JSONException {
-        this.put(index, new JSONObject(value));
-        return this;
+        return put(index, (Object) (value instanceof JSONObject ? value : new JSONObject(value)));
     }
 
     /**
@@ -946,7 +931,7 @@ public class JSONArray implements Iterable<Object> {
             throw new JSONException("JSONArray[" + index + "] not found.");
         }
         if (index < this.length()) {
-            this.myArrayList.set(index, value);
+            super.set(index, value);
         } else {
             while (index != this.length()) {
                 this.put(JSONObject.NULL);
@@ -966,7 +951,7 @@ public class JSONArray implements Iterable<Object> {
      */
     public Object remove(int index) {
         return index >= 0 && index < this.length()
-            ? this.myArrayList.remove(index)
+            ? super.remove(index)
             : null;
     }
 
@@ -1100,7 +1085,7 @@ public class JSONArray implements Iterable<Object> {
             writer.write('[');
 
             if (length == 1) {
-                JSONObject.writeValue(writer, this.myArrayList.get(0),
+                JSONObject.writeValue(writer, super.get(0),
                         indentFactor, indent);
             } else if (length != 0) {
                 final int newindent = indent + indentFactor;
@@ -1113,7 +1098,7 @@ public class JSONArray implements Iterable<Object> {
                         writer.write('\n');
                     }
                     JSONObject.indent(writer, newindent);
-                    JSONObject.writeValue(writer, this.myArrayList.get(i),
+                    JSONObject.writeValue(writer, super.get(i),
                             indentFactor, newindent);
                     commanate = true;
                 }
