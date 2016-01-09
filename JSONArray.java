@@ -157,6 +157,18 @@ public class JSONArray extends ArrayList<Object> {
 
     /**
      * Construct a JSONArray from an array
+     * @param <T> The type of the array elements
+     */
+    @SafeVarargs
+    public <T> JSONArray(T... array) {
+        this();
+        for (T x : array) {
+            this.put(JSONObject.wrap(x));
+        }
+    }
+
+    /**
+     * Construct a JSONArray from an array
      *
      * @throws JSONException
      *             If not an array.

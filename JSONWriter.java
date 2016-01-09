@@ -2,6 +2,7 @@ package org.json;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.BitSet;
 
 /*
 Copyright (c) 2006 JSON.org
@@ -50,35 +51,33 @@ SOFTWARE.
  * <p>
  * The first method called must be <code>array</code> or <code>object</code>.
  * There are no methods for adding commas or colons. JSONWriter adds them for
- * you. Objects and arrays can be nested up to 200 levels deep.
+ * you.
  * <p>
  * This can sometimes be easier than using a JSONObject to build a string.
  * @author JSON.org
  * @version 2015-12-09
  */
 public class JSONWriter {
-    private static final int maxdepth = 200;
-
-    /**
-     * The comma flag determines if a comma should be output before the next
-     * value.
-     */
-    private boolean comma;
-
     /**
      * The current mode. Values:
      * 'a' (array),
-     * 'd' (done),
-     * 'i' (initial),
-     * 'k' (key),
-     * 'o' (object).
+     * 'A' (array after first element),
+     * 'i' (initial/done),
+     * 'k' (object: key),
+     * 'o' (object: value),
+     * 'K' (object: key after first element).
+     * 
+     * The stack top is completely determined by the mode: it is empty in modes
+     * 'i', 'd', true (object) in modes 'k', 'o', 'K', and false (array) in
+     * modes 'a', 'A'.
      */
     protected char mode;
 
     /**
-     * The object/array stack.
+     * The object/array stack. Stored as a BitSet, where objects are true and
+     * arrays are false.
      */
-    private final char stack[];
+    private final BitSet stack;
 
     /**
      * The stack top index. A value of 0 indicates that the stack is empty.
@@ -94,9 +93,8 @@ public class JSONWriter {
      * Make a fresh JSONWriter. It can be used to build one JSON text.
      */
     public JSONWriter(Writer w) {
-        comma = false;
         mode = 'i';
-        stack = new char[maxdepth];
+        stack = new BitSet();
         top = 0;
         writer = w;
     }
@@ -111,22 +109,35 @@ public class JSONWriter {
         if (string == null) {
             throw new JSONException("Null pointer");
         }
-        if (mode == 'o' || mode == 'a') {
-            try {
-                if (comma && mode == 'a') {
-                    writer.write(',');
-                }
-                writer.write(string);
-            } catch (IOException e) {
-                throw new JSONException(e);
-            }
-            if (mode == 'o') {
-                mode = 'k';
-            }
-            comma = true;
-            return this;
+        if (mode == 'd') {
+            throw new JSONException("Value out of sequence.");
         }
-        throw new JSONException("Value out of sequence.");
+        try {
+            if (mode == 'A' || mode == 'K') {
+                writer.write(',');
+            } else if (mode == 'o') {
+                writer.write(':');
+            }
+            writer.write(string);
+        } catch (IOException e) {
+            throw new JSONException(e);
+        }
+        switch (mode) {
+        case 'a':
+            mode = 'A';
+            break;
+        case 'k':
+        case 'K':
+            mode = 'o';
+            break;
+        case 'o':
+            mode = 'K';
+            break;
+        case 'i':
+            mode = 'd';
+            break;
+        }
+        return this;
     }
 
     /**
@@ -139,10 +150,9 @@ public class JSONWriter {
      * outermost array or object).
      */
     public JSONWriter array() throws JSONException {
-        if (mode == 'i' || mode == 'o' || mode == 'a') {
-            push('a');
+        if (mode == 'i' || mode == 'o' || mode == 'a' || mode == 'A') {
             append("[");
-            comma = false;
+            push(false);
             return this;
         }
         throw new JSONException("Misplaced array.");
@@ -155,19 +165,13 @@ public class JSONWriter {
      * @return this
      * @throws JSONException If unbalanced.
      */
-    private JSONWriter end(char mode, char c) throws JSONException {
-        if (this.mode != mode) {
-            throw new JSONException(mode == 'a'
-                ? "Misplaced endArray."
-                : "Misplaced endObject.");
-        }
-        pop(mode);
+    private JSONWriter end(char c) throws JSONException {
+        pop();
         try {
             writer.write(c);
         } catch (IOException e) {
             throw new JSONException(e);
         }
-        comma = true;
         return this;
     }
 
@@ -178,7 +182,10 @@ public class JSONWriter {
      * @throws JSONException If incorrectly nested.
      */
     public JSONWriter endArray() throws JSONException {
-        return end('a', ']');
+        if (mode != 'a' && mode != 'A') {
+            throw new JSONException("Misplaced endArray.");
+        }
+        return end(']');
     }
 
     /**
@@ -188,7 +195,10 @@ public class JSONWriter {
      * @throws JSONException If incorrectly nested.
      */
     public JSONWriter endObject() throws JSONException {
-        return end('k', '}');
+        if (mode != 'k' && mode != 'K') {
+            throw new JSONException("Misplaced endObject.");
+        }
+        return end('}');
     }
 
     /**
@@ -200,16 +210,18 @@ public class JSONWriter {
 	public JSONWriter end() throws JSONException {
 		char bracket;
 		switch (mode) {
-		case 'a':
+        case 'a':
+        case 'A':
 			bracket = ']';
 			break;
-		case 'o':
+        case 'k':
+        case 'K':
 			bracket = '}';
 			break;
 		default:
 			throw new JSONException("Misplaced end.");
 		}
-		return end(mode, bracket);
+		return end(bracket);
 	}
 
     /**
@@ -224,19 +236,8 @@ public class JSONWriter {
         if (string == null) {
             throw new JSONException("Null key.");
         }
-        if (mode == 'k') {
-            try {
-                if (comma) {
-                    writer.write(',');
-                }
-                writer.write(JSONObject.quote(string));
-                writer.write(':');
-                comma = false;
-                mode = 'o';
-                return this;
-            } catch (IOException e) {
-                throw new JSONException(e);
-            }
+        if (mode == 'k' || mode == 'K') {
+            return append(JSONObject.quote(string));
         }
         throw new JSONException("Misplaced key.");
     }
@@ -252,13 +253,9 @@ public class JSONWriter {
      * outermost array or object).
      */
     public JSONWriter object() throws JSONException {
-        if (mode == 'i') {
-            mode = 'o';
-        }
-        if (mode == 'o' || mode == 'a') {
+        if (mode == 'i' || mode == 'o' || mode == 'a' || mode == 'A') {
             append("{");
-            push('k');
-            comma = false;
+            push(true);
             return this;
         }
         throw new JSONException("Misplaced object.");
@@ -268,33 +265,24 @@ public class JSONWriter {
 
     /**
      * Pop an array or object scope.
-     * @param c The scope to close.
      * @throws JSONException If nesting is wrong.
      */
-    private void pop(char c) throws JSONException {
+    private void pop() throws JSONException {
         if (top <= 0) {
             throw new JSONException("Nesting error.");
         }
-        char m = stack[top - 1];
-        if (m != c) {
-            throw new JSONException("Nesting error.");
-        }
-        top -= 1;
-        mode = top == 0 ? 'd' : stack[top - 1];
+        top--;
+        mode = top == 0 ? 'd' : stack.get(top - 1) ? 'K' : 'A';
     }
 
     /**
      * Push an array or object scope.
-     * @param jo The scope to open.
+     * @param b The scope to open.
      * @throws JSONException If nesting is too deep.
      */
-    private void push(char jo) throws JSONException {
-        if (top >= maxdepth) {
-            throw new JSONException("Nesting too deep.");
-        }
-        stack[top] = jo;
-        mode = jo;
-        top += 1;
+    private void push(boolean b) throws JSONException {
+        stack.set(top++, b);
+        mode = b ? 'k' : 'a';
     }
 
 
