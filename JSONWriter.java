@@ -78,7 +78,7 @@ public class JSONWriter {
     /**
      * The object/array stack.
      */
-    private final JSONObject stack[];
+    private final char stack[];
 
     /**
      * The stack top index. A value of 0 indicates that the stack is empty.
@@ -96,7 +96,7 @@ public class JSONWriter {
     public JSONWriter(Writer w) {
         comma = false;
         mode = 'i';
-        stack = new JSONObject[maxdepth];
+        stack = new char[maxdepth];
         top = 0;
         writer = w;
     }
@@ -140,7 +140,7 @@ public class JSONWriter {
      */
     public JSONWriter array() throws JSONException {
         if (mode == 'i' || mode == 'o' || mode == 'a') {
-            push(null);
+            push('a');
             append("[");
             comma = false;
             return this;
@@ -226,7 +226,6 @@ public class JSONWriter {
         }
         if (mode == 'k') {
             try {
-                stack[top - 1].putOnce(string, Boolean.TRUE);
                 if (comma) {
                     writer.write(',');
                 }
@@ -258,7 +257,7 @@ public class JSONWriter {
         }
         if (mode == 'o' || mode == 'a') {
             append("{");
-            push(new JSONObject());
+            push('k');
             comma = false;
             return this;
         }
@@ -276,16 +275,12 @@ public class JSONWriter {
         if (top <= 0) {
             throw new JSONException("Nesting error.");
         }
-        char m = stack[top - 1] == null ? 'a' : 'k';
+        char m = stack[top - 1];
         if (m != c) {
             throw new JSONException("Nesting error.");
         }
         top -= 1;
-        mode = top == 0
-            ? 'd'
-            : stack[top - 1] == null
-            ? 'a'
-            : 'k';
+        mode = top == 0 ? 'd' : stack[top - 1];
     }
 
     /**
@@ -293,12 +288,12 @@ public class JSONWriter {
      * @param jo The scope to open.
      * @throws JSONException If nesting is too deep.
      */
-    private void push(JSONObject jo) throws JSONException {
+    private void push(char jo) throws JSONException {
         if (top >= maxdepth) {
             throw new JSONException("Nesting too deep.");
         }
         stack[top] = jo;
-        mode = jo == null ? 'a' : 'k';
+        mode = jo;
         top += 1;
     }
 
