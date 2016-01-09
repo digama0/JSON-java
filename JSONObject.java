@@ -1681,16 +1681,16 @@ public class JSONObject extends HashMap<String, Object> {
                 return object;
             }
 
+            if (object instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) object;
+                return new JSONObject(map);
+            }
             if (object instanceof Collection) {
                 Collection<?> coll = (Collection<?>) object;
                 return new JSONArray(coll);
             }
             if (object.getClass().isArray()) {
                 return new JSONArray(object);
-            }
-            if (object instanceof Map) {
-                Map<?, ?> map = (Map<?, ?>) object;
-                return new JSONObject(map);
             }
             Package objectPackage = object.getClass().getPackage();
             String objectPackageName = objectPackage != null ? objectPackage
